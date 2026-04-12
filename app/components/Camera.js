@@ -1,16 +1,18 @@
 "use client"
 
 import { useRef, useEffect, useState } from "react"
-import { FaceLandmarker, FilesetResolver } from "@mediapipe/tasks-vision"
+import { FaceLandmarker, HandLandmarker, FilesetResolver } from "@mediapipe/tasks-vision"
 
 export default function Camera() {
   const videoRef = useRef(null)
   const canvasRef = useRef(null)
   const lookingAwayRef = useRef(0)
-  const [stats, setStats] = useState({ lookingAway: 0 })
+  const faceTouchRef = useRef(0)
+  const [stats, setStats] = useState({ lookingAway: 0, faceTouches: 0 })
 
   useEffect(() => {
     let faceLandmarker
+    let handLandmarker
     let animationId
     let lastUpdate = Date.now()
 
@@ -25,6 +27,7 @@ export default function Camera() {
       const vision = await FilesetResolver.forVisionTasks(
         "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision/wasm"
       )
+
       faceLandmarker = await FaceLandmarker.createFromOptions(vision, {
         baseOptions: {
           modelAssetPath: "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task",
@@ -34,6 +37,15 @@ export default function Camera() {
         numFaces: 1,
         outputFaceBlendshapes: true,
         outputFacialTransformationMatrixes: true,
+      })
+
+      handLandmarker = await HandLandmarker.createFromOptions(vision, {
+        baseOptions: {
+          modelAssetPath: "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task",
+          delegate: "GPU"
+        },
+        runningMode: "VIDEO",
+        numHands: 2
       })
 
       detectLoop()
@@ -48,16 +60,23 @@ export default function Camera() {
       canvas.width = video.videoWidth || 640
       canvas.height = video.videoHeight || 480
 
-      if (video.videoWidth === 0 || !faceLandmarker) {
+      if (video.videoWidth === 0 || !faceLandmarker || !handLandmarker) {
         animationId = requestAnimationFrame(detectLoop)
         return
       }
 
-      const results = faceLandmarker?.detectForVideo(video, performance.now())
+      const now = performance.now()
+      const faceResults = faceLandmarker.detectForVideo(video, now)
+      const handResults = handLandmarker.detectForVideo(video, now)
+
       ctx.clearRect(0, 0, canvas.width, canvas.height)
 
-      if (results?.faceLandmarks?.[0]) {
-        const landmarks = results.faceLandmarks[0]
+      let isLookingAway = false
+      let isTouchingFace = false
+
+      // face detection
+      if (faceResults?.faceLandmarks?.[0]) {
+        const landmarks = faceResults.faceLandmarks[0]
 
         for (const landmark of landmarks) {
           ctx.beginPath()
@@ -66,27 +85,60 @@ export default function Camera() {
           ctx.fill()
         }
 
-
-        // use facial transformation matrix for real gaze direction
-        const matrix = results.facialTransformationMatrixes?.[0]?.data
-
+        // gaze detection
+        const matrix = faceResults.facialTransformationMatrixes?.[0]?.data
         if (matrix) {
-          // matrix[8] is the X rotation (left/right head turn)
-          // matrix[9] is the Y rotation (up/down head tilt)
           const lookLeftRight = Math.abs(matrix[8])
           const lookUpDown = Math.abs(matrix[9])
+          isLookingAway = lookLeftRight > 0.3 || lookUpDown > 0.3
+        }
 
-          const isLookingAway = lookLeftRight > 0.3 || lookUpDown > 0.3
-
-          const now = Date.now()
-          if (now - lastUpdate >= 1000) {
-            if (isLookingAway) {
-              lookingAwayRef.current += 1
-              setStats({ lookingAway: lookingAwayRef.current })
+        // face touch detection — check if any hand landmark is close to any face landmark
+        if (handResults?.landmarks?.length > 0) {
+          for (const hand of handResults.landmarks) {
+            for (const handPoint of hand) {
+              for (const facePoint of landmarks) {
+                const dx = handPoint.x - facePoint.x
+                const dy = handPoint.y - facePoint.y
+                const dist = Math.sqrt(dx * dx + dy * dy)
+                if (dist < 0.08) {
+                  isTouchingFace = true
+                  break
+                }
+              }
+              if (isTouchingFace) break
             }
-            lastUpdate = now
+            if (isTouchingFace) break
           }
         }
+      }
+
+      // draw hand landmarks
+      if (handResults?.landmarks?.length > 0) {
+        for (const hand of handResults.landmarks) {
+          for (const point of hand) {
+            ctx.beginPath()
+            ctx.arc(point.x * canvas.width, point.y * canvas.height, 3, 0, 2 * Math.PI)
+            ctx.fillStyle = isTouchingFace ? "#ff4444" : "#4488ff"
+            ctx.fill()
+          }
+        }
+      }
+
+      // update stats once per second
+      const nowMs = Date.now()
+      if (nowMs - lastUpdate >= 1000) {
+        if (isLookingAway) {
+          lookingAwayRef.current += 1
+        }
+        if (isTouchingFace) {
+          faceTouchRef.current += 1
+        }
+        setStats({
+          lookingAway: lookingAwayRef.current,
+          faceTouches: faceTouchRef.current
+        })
+        lastUpdate = nowMs
       }
 
       animationId = requestAnimationFrame(detectLoop)
@@ -111,8 +163,9 @@ export default function Camera() {
         />
       </div>
 
-      <div className="text-white text-xl">
-        Looked away: <span className="text-red-400 font-bold">{stats.lookingAway}s</span>
+      <div className="flex gap-8 text-white text-xl">
+        <div>Looked away: <span className="text-red-400 font-bold">{stats.lookingAway}s</span></div>
+        <div>Face touches: <span className="text-yellow-400 font-bold">{stats.faceTouches}s</span></div>
       </div>
     </div>
   )
