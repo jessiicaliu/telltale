@@ -21,7 +21,7 @@ function StarBadge({ label, hit }) {
   )
 }
 
-function AnswerCard({ number, question, answer, stats, role, company, type }) {
+function AnswerCard({ number, question, answer, stats, role, company, type, followUp, followUpAnswer }) {
   const [result, setResult] = useState(null)
   const [loading, setLoading] = useState(false)
 
@@ -52,6 +52,16 @@ function AnswerCard({ number, question, answer, stats, role, company, type }) {
           style={{ fontFamily: 'JetBrains Mono, monospace' }}>Your answer</span>
         <p className="text-white/50 text-sm leading-relaxed">{answer || "No answer recorded"}</p>
       </div>
+
+      {followUp && (
+        <div className="flex flex-col gap-1.5 rounded-xl p-3"
+          style={{ background: "rgba(245,158,11,0.04)", border: "1px solid rgba(245,158,11,0.12)" }}>
+          <span className="text-xs text-amber-400/50 uppercase tracking-widest"
+            style={{ fontFamily: 'JetBrains Mono, monospace' }}>→ follow-up asked</span>
+          <p className="text-white/60 text-sm font-medium">{followUp}</p>
+          <p className="text-white/35 text-sm leading-relaxed">{followUpAnswer}</p>
+        </div>
+      )}
 
       <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-white/30" style={{ fontFamily: 'JetBrains Mono, monospace' }}>
         <span>👀 {stats.lookingAway}s away</span>
@@ -117,6 +127,8 @@ export default function Camera({ interview }) {
   const [timeLeft, setTimeLeft] = useState(QUESTION_TIME)
   const [showDots, setShowDots] = useState(true)
   const [showSimulator, setShowSimulator] = useState(true)
+  const [followUpState, setFollowUpState] = useState(null) // null | { question: string|null, loading: boolean }
+  const [followUpTimeLeft, setFollowUpTimeLeft] = useState(60)
 
   const videoRef = useRef(null)
   const canvasRef = useRef(null)
@@ -151,13 +163,21 @@ export default function Camera({ interview }) {
     return () => clearInterval(interval)
   }, [sessionState, currentQ])
 
+  useEffect(() => {
+    if (!followUpState?.question) return
+    setFollowUpTimeLeft(60)
+    const interval = setInterval(() => {
+      setFollowUpTimeLeft(prev => (prev > 0 ? prev - 1 : 0))
+    }, 1000)
+    return () => clearInterval(interval)
+  }, [followUpState?.question])
+
   function toggleDots() {
     showDotsRef.current = !showDotsRef.current
     setShowDots(showDotsRef.current)
   }
 
   function handleNext() {
-    // capture per-question stats as delta from question start
     const questionStats = {
       lookingAway: stats.lookingAway - (questionStartStatsRef.current?.lookingAway ?? 0),
       faceTouches: stats.faceTouches - (questionStartStatsRef.current?.faceTouches ?? 0),
@@ -167,7 +187,6 @@ export default function Camera({ interview }) {
 
     const answer = transcriptRef.current.trim()
 
-    // compute per-word filler breakdown from this question's transcript
     const fillerWords = ["um", "uh", "like", "you know", "basically", "literally", "actually", "so"]
     const fillerBreakdown = {}
     for (const word of fillerWords) {
@@ -177,21 +196,54 @@ export default function Camera({ interview }) {
 
     transcriptRef.current = ""
 
-    const newAnswers = [...answers, {
-      question: interview.questions[currentQ],
+    const savedQuestion = interview.questions[currentQ]
+    setAnswers(prev => [...prev, {
+      question: savedQuestion,
       answer: answer || "No answer recorded",
-      stats: { ...questionStats, fillerBreakdown }
-    }]
-    setAnswers(newAnswers)
+      stats: { ...questionStats, fillerBreakdown },
+      followUp: null,
+      followUpAnswer: null
+    }])
 
-    // save current stats as baseline for next question
     questionStartStatsRef.current = { ...stats }
 
     if (currentQ < interview.questions.length - 1) {
-      setCurrentQ(prev => prev + 1)
+      setFollowUpState({ question: null, loading: true })
+      fetch("/api/followup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ question: savedQuestion, answer: answer || "No answer recorded", role: interview.role, company: interview.company, type: interview.type })
+      }).then(r => r.json()).then(data => {
+        setFollowUpState({ question: data.followUp, loading: false })
+      }).catch(() => {
+        setFollowUpState(null)
+        setCurrentQ(prev => prev + 1)
+      })
     } else {
       setSessionState("done")
     }
+  }
+
+  function handleFollowUpDone() {
+    const followUpAnswer = transcriptRef.current.trim()
+    transcriptRef.current = ""
+    setAnswers(prev => {
+      const updated = [...prev]
+      updated[updated.length - 1] = {
+        ...updated[updated.length - 1],
+        followUp: followUpState.question,
+        followUpAnswer: followUpAnswer || "No answer recorded"
+      }
+      return updated
+    })
+    setFollowUpState(null)
+    setCurrentQ(prev => prev + 1)
+  }
+
+  function handleFollowUpSkip() {
+    transcriptRef.current = ""
+    setFollowUpState(null)
+    setCurrentQ(prev => prev + 1)
   }
 
   async function getReport() {
@@ -252,14 +304,46 @@ export default function Camera({ interview }) {
       {/* ACTIVE */}
       {sessionState === "active" && interview && (
         <div className={`flex flex-col items-center gap-5 w-full ${showSimulator ? "max-w-5xl" : "max-w-3xl"}`}>
-          <Question
-            question={interview.questions[currentQ]}
-            number={currentQ + 1}
-            total={interview.questions.length}
-          />
+          {followUpState ? (
+            <div className="w-full rounded-2xl p-6 flex flex-col gap-2"
+              style={{ background: "rgba(245,158,11,0.05)", border: "1px solid rgba(245,158,11,0.15)" }}>
+              <span className="text-xs text-amber-400/50 uppercase tracking-widest"
+                style={{ fontFamily: 'JetBrains Mono, monospace' }}>→ follow-up</span>
+              {followUpState.loading
+                ? <div className="flex items-center gap-2 text-white/25 text-sm" style={{ fontFamily: 'JetBrains Mono, monospace' }}>
+                    <Spinner /> thinking of a follow-up...
+                  </div>
+                : <p className="text-white text-lg font-medium leading-snug">{followUpState.question}</p>
+              }
+            </div>
+          ) : (
+            <Question
+              question={interview.questions[currentQ]}
+              number={currentQ + 1}
+              total={interview.questions.length}
+            />
+          )}
 
-          {/* Question countdown bar */}
-          {(() => {
+          {/* Countdown bar */}
+          {followUpState?.question ? (() => {
+            const pct = (followUpTimeLeft / 60) * 100
+            const barColor = followUpTimeLeft > 30 ? "bg-amber-400" : followUpTimeLeft > 15 ? "bg-amber-500" : "bg-red-500"
+            const textColor = followUpTimeLeft > 30 ? "text-amber-400/60" : followUpTimeLeft > 15 ? "text-amber-500/70" : "text-red-400"
+            const pulse = followUpTimeLeft <= 15 && followUpTimeLeft > 0 ? "animate-pulse" : ""
+            return (
+              <div className="w-full flex flex-col gap-1.5">
+                <div className="flex justify-between items-center">
+                  <span className="text-xs text-white/20" style={{ fontFamily: 'JetBrains Mono, monospace' }}>follow-up time</span>
+                  <span className={`text-xs font-mono tabular-nums ${textColor} ${pulse}`}>
+                    {followUpTimeLeft === 0 ? "time's up" : formatTime(followUpTimeLeft)}
+                  </span>
+                </div>
+                <div className="w-full h-1 rounded-full bg-white/[0.06] overflow-hidden">
+                  <div className={`h-full rounded-full transition-all duration-1000 ${barColor}`} style={{ width: `${pct}%` }} />
+                </div>
+              </div>
+            )
+          })() : !followUpState && (() => {
             const pct = (timeLeft / QUESTION_TIME) * 100
             const barColor = timeLeft > 60 ? "bg-emerald-500" : timeLeft > 30 ? "bg-amber-400" : "bg-red-500"
             const textColor = timeLeft > 60 ? "text-white/30" : timeLeft > 30 ? "text-amber-400/70" : "text-red-400"
@@ -273,10 +357,7 @@ export default function Camera({ interview }) {
                   </span>
                 </div>
                 <div className="w-full h-1 rounded-full bg-white/[0.06] overflow-hidden">
-                  <div
-                    className={`h-full rounded-full transition-all duration-1000 ${barColor}`}
-                    style={{ width: `${pct}%` }}
-                  />
+                  <div className={`h-full rounded-full transition-all duration-1000 ${barColor}`} style={{ width: `${pct}%` }} />
                 </div>
               </div>
             )
@@ -343,10 +424,25 @@ export default function Camera({ interview }) {
             {METRICS.map(({ key, label, unit, color, dot, glow }) => (
               <StatCard key={key} label={label} value={stats[key]} unit={unit} color={color} dot={dot} glow={glow} />
             ))}
-            <button onClick={handleNext}
-              className="flex-shrink-0 px-6 rounded-2xl text-sm font-medium text-white/30 hover:text-emerald-400 border border-white/5 hover:border-emerald-500/20 hover:bg-emerald-500/5 transition-all whitespace-nowrap cursor-pointer">
-              {currentQ < interview.questions.length - 1 ? "Next →" : "Finish"}
-            </button>
+            {followUpState ? (
+              <div className="flex gap-2 flex-shrink-0">
+                <button onClick={handleFollowUpDone}
+                  disabled={followUpState.loading || !followUpState.question}
+                  className="px-6 rounded-2xl text-sm font-medium text-white/30 hover:text-amber-400 border border-white/5 hover:border-amber-500/20 hover:bg-amber-500/5 transition-all whitespace-nowrap cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed">
+                  Done →
+                </button>
+                <button onClick={handleFollowUpSkip}
+                  disabled={followUpState.loading}
+                  className="px-4 rounded-2xl text-sm font-medium text-white/15 hover:text-white/30 border border-white/5 transition-all whitespace-nowrap cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed">
+                  Skip
+                </button>
+              </div>
+            ) : (
+              <button onClick={handleNext}
+                className="flex-shrink-0 px-6 rounded-2xl text-sm font-medium text-white/30 hover:text-emerald-400 border border-white/5 hover:border-emerald-500/20 hover:bg-emerald-500/5 transition-all whitespace-nowrap cursor-pointer">
+                {currentQ < interview.questions.length - 1 ? "Next →" : "Finish"}
+              </button>
+            )}
           </div>
         </div>
       )}
@@ -372,6 +468,8 @@ export default function Camera({ interview }) {
                 role={interview.role}
                 company={interview.company}
                 type={interview.type}
+                followUp={a.followUp}
+                followUpAnswer={a.followUpAnswer}
               />
             ))}
           </div>
