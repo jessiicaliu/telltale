@@ -2,9 +2,17 @@
 
 import { useState } from "react"
 
+const INTERVIEW_TYPES = [
+  { id: "behavioral", label: "Behavioral" },
+  { id: "technical", label: "Technical" },
+  { id: "system-design", label: "System Design" },
+  { id: "case", label: "Case" },
+]
+
 export default function Setup({ onStart }) {
   const [role, setRole] = useState("")
   const [company, setCompany] = useState("")
+  const [type, setType] = useState("behavioral")
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
 
@@ -16,11 +24,11 @@ export default function Setup({ onStart }) {
       const res = await fetch("/api/questions", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ role, company })
+        body: JSON.stringify({ role, company, type })
       })
       const { questions, error } = await res.json()
       if (error) throw new Error(error)
-      onStart({ role, company, questions })
+      onStart({ role, company, type, questions })
     } catch (e) {
       setError("Something went wrong. Try again.")
     }
@@ -60,6 +68,21 @@ export default function Setup({ onStart }) {
           style={{ fontFamily: 'JetBrains Mono, monospace' }}
           onKeyDown={e => e.key === "Enter" && handleGenerate()}
         />
+        <div className="grid grid-cols-4 gap-2">
+          {INTERVIEW_TYPES.map(({ id, label }) => (
+            <button
+              key={id}
+              onClick={() => setType(id)}
+              className={`py-2.5 rounded-xl text-sm font-medium transition-all cursor-pointer border ${
+                type === id
+                  ? "bg-emerald-500/10 border-emerald-500/40 text-emerald-400"
+                  : "bg-white/[0.03] border-white/[0.08] text-white/30 hover:text-white/50 hover:border-white/15"
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
         {error && <p className="text-red-400 text-xs text-left" style={{ fontFamily: 'JetBrains Mono, monospace' }}>{error}</p>}
       </div>
 

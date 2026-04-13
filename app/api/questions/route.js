@@ -5,7 +5,27 @@ const groq = new Groq({ apiKey: process.env.GROQ_API_KEY })
 
 export async function POST(req) {
   try {
-    const { role, company } = await req.json()
+    const { role, company, type = "behavioral" } = await req.json()
+
+    const typePrompts = {
+      behavioral: `Mix of:
+      - 2 behavioral questions (tell me about a time...)
+      - 2 situational questions (how would you approach...)
+      - 1 role-specific question about their experience`,
+      technical: `Mix of:
+      - 2 technical knowledge questions testing depth in core concepts for this role
+      - 2 problem-solving questions (how would you debug / implement / optimize X)
+      - 1 question about a past technical project or decision`,
+      "system-design": `Mix of:
+      - 2 open-ended system design questions (design a X that does Y)
+      - 2 architecture/tradeoff questions (how would you scale / handle failure in X)
+      - 1 question about past design decisions and their outcomes`,
+      case: `Mix of:
+      - 1 market sizing question
+      - 2 business strategy or problem-solving case questions
+      - 1 prioritization question (given limited resources, how would you...)
+      - 1 role-specific question connecting business thinking to the ${role} function`,
+    }
 
     const completion = await groq.chat.completions.create({
       model: "llama-3.3-70b-versatile",
@@ -13,12 +33,9 @@ export async function POST(req) {
       messages: [
         {
           role: "user",
-          content: `Generate exactly 5 realistic interview questions for a candidate interviewing for a ${role} position at ${company}.
+          content: `Generate exactly 5 realistic ${type} interview questions for a candidate interviewing for a ${role} position at ${company}.
 
-      Mix of:
-      - 2 behavioral questions (tell me about a time...)
-      - 2 situational questions (how would you approach...)
-      - 1 role-specific question about their experience
+      ${typePrompts[type] ?? typePrompts.behavioral}
 
       Keep questions natural and conversational like a real interviewer would ask. Don't mention ${company} by name in every question — only where it genuinely makes sense. Don't be overly specific about internal tools, teams, or processes at ${company} since the candidate hasn't worked there.
 
