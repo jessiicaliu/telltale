@@ -53,11 +53,22 @@ function AnswerCard({ number, question, answer, stats, role, company, type }) {
         <p className="text-white/50 text-sm leading-relaxed">{answer || "No answer recorded"}</p>
       </div>
 
-      <div className="flex gap-4 text-xs text-white/30" style={{ fontFamily: 'JetBrains Mono, monospace' }}>
+      <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-white/30" style={{ fontFamily: 'JetBrains Mono, monospace' }}>
         <span>👀 {stats.lookingAway}s away</span>
         <span>🤚 {stats.faceTouches}s touching</span>
-        <span>🗣️ {stats.fillers} fillers</span>
         <span>🪑 {stats.slouching}s slouching</span>
+        {stats.fillerBreakdown && Object.keys(stats.fillerBreakdown).length > 0 ? (
+          <span className="flex gap-2 flex-wrap">
+            {Object.entries(stats.fillerBreakdown).map(([word, count]) => (
+              <span key={word}>
+                <span className="text-amber-400/60">{word}</span>
+                <span className="text-white/20"> ×{count}</span>
+              </span>
+            ))}
+          </span>
+        ) : (
+          <span>🗣️ no fillers</span>
+        )}
       </div>
 
       {!result && !loading && (
@@ -155,12 +166,21 @@ export default function Camera({ interview }) {
     }
 
     const answer = transcriptRef.current.trim()
+
+    // compute per-word filler breakdown from this question's transcript
+    const fillerWords = ["um", "uh", "like", "you know", "basically", "literally", "actually", "so"]
+    const fillerBreakdown = {}
+    for (const word of fillerWords) {
+      const matches = answer.toLowerCase().match(new RegExp(`\\b${word}\\b`, "g"))
+      if (matches) fillerBreakdown[word] = matches.length
+    }
+
     transcriptRef.current = ""
 
     const newAnswers = [...answers, {
       question: interview.questions[currentQ],
       answer: answer || "No answer recorded",
-      stats: questionStats
+      stats: { ...questionStats, fillerBreakdown }
     }]
     setAnswers(newAnswers)
 
