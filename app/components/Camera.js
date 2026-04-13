@@ -8,7 +8,10 @@ export default function Camera() {
   const canvasRef = useRef(null)
   const lookingAwayRef = useRef(0)
   const faceTouchRef = useRef(0)
-  const [stats, setStats] = useState({ lookingAway: 0, faceTouches: 0 })
+  const fillerRef = useRef(0)
+  const mediaRecorderRef = useRef(null)
+  const audioChunksRef = useRef([])
+  const [stats, setStats] = useState({ lookingAway: 0, faceTouches: 0, fillers: 0 })
 
   useEffect(() => {
     let faceLandmarker
@@ -16,8 +19,56 @@ export default function Camera() {
     let animationId
     let lastUpdate = Date.now()
 
+    async function startAudioRecording() {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      const mediaRecorder = new MediaRecorder(stream)
+      mediaRecorderRef.current = mediaRecorder
+      audioChunksRef.current = []
+
+      mediaRecorder.ondataavailable = (e) => {
+        if (e.data.size > 0) audioChunksRef.current.push(e.data)
+      }
+
+      mediaRecorder.onstop = async () => {
+        const blob = new Blob(audioChunksRef.current, { type: "audio/webm" })
+        audioChunksRef.current = []
+
+        const formData = new FormData()
+        formData.append("audio", blob, "audio.webm")
+
+        try {
+          const res = await fetch("/api/transcribe", {
+            method: "POST",
+            body: formData,
+          })
+          const { text } = await res.json()
+          console.log("transcript:", text)
+
+          const fillerWords = ["um", "uh", "like", "you know", "basically", "literally"]
+          let count = 0
+          for (const word of fillerWords) {
+            const matches = text.toLowerCase().match(new RegExp(`\\b${word}\\b`, "g"))
+            if (matches) count += matches.length
+          }
+          if (count > 0) {
+            fillerRef.current += count
+            setStats(prev => ({ ...prev, fillers: fillerRef.current }))
+          }
+        } catch (e) {
+          console.log("transcription error:", e)
+        }
+
+        // restart recording
+        mediaRecorder.start()
+        setTimeout(() => mediaRecorder.stop(), 10000)
+      }
+
+      mediaRecorder.start()
+      setTimeout(() => mediaRecorder.stop(), 10000)
+    }
+
     async function setup() {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: true })
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false })
       videoRef.current.srcObject = stream
 
       await new Promise((resolve) => {
@@ -74,7 +125,6 @@ export default function Camera() {
       let isLookingAway = false
       let isTouchingFace = false
 
-      // face detection
       if (faceResults?.faceLandmarks?.[0]) {
         const landmarks = faceResults.faceLandmarks[0]
 
@@ -85,7 +135,6 @@ export default function Camera() {
           ctx.fill()
         }
 
-        // gaze detection
         const matrix = faceResults.facialTransformationMatrixes?.[0]?.data
         if (matrix) {
           const lookLeftRight = Math.abs(matrix[8])
@@ -93,7 +142,6 @@ export default function Camera() {
           isLookingAway = lookLeftRight > 0.3 || lookUpDown > 0.3
         }
 
-        // face touch detection — check if any hand landmark is close to any face landmark
         if (handResults?.landmarks?.length > 0) {
           for (const hand of handResults.landmarks) {
             for (const handPoint of hand) {
@@ -113,7 +161,6 @@ export default function Camera() {
         }
       }
 
-      // draw hand landmarks
       if (handResults?.landmarks?.length > 0) {
         for (const hand of handResults.landmarks) {
           for (const point of hand) {
@@ -125,18 +172,14 @@ export default function Camera() {
         }
       }
 
-      // update stats once per second
       const nowMs = Date.now()
       if (nowMs - lastUpdate >= 1000) {
-        if (isLookingAway) {
-          lookingAwayRef.current += 1
-        }
-        if (isTouchingFace) {
-          faceTouchRef.current += 1
-        }
+        if (isLookingAway) lookingAwayRef.current += 1
+        if (isTouchingFace) faceTouchRef.current += 1
         setStats({
           lookingAway: lookingAwayRef.current,
-          faceTouches: faceTouchRef.current
+          faceTouches: faceTouchRef.current,
+          fillers: fillerRef.current
         })
         lastUpdate = nowMs
       }
@@ -144,8 +187,13 @@ export default function Camera() {
       animationId = requestAnimationFrame(detectLoop)
     }
 
+    startAudioRecording()
     setup()
-    return () => cancelAnimationFrame(animationId)
+
+    return () => {
+      cancelAnimationFrame(animationId)
+      if (mediaRecorderRef.current) mediaRecorderRef.current.stop()
+    }
   }, [])
 
   return (
@@ -166,6 +214,7 @@ export default function Camera() {
       <div className="flex gap-8 text-white text-xl">
         <div>Looked away: <span className="text-red-400 font-bold">{stats.lookingAway}s</span></div>
         <div>Face touches: <span className="text-yellow-400 font-bold">{stats.faceTouches}s</span></div>
+        <div>Filler words: <span className="text-purple-400 font-bold">{stats.fillers}</span></div>
       </div>
     </div>
   )
