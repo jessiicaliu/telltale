@@ -1,7 +1,7 @@
 "use client"
 
 import { useRef, useEffect, useState } from "react"
-import { FaceLandmarker, HandLandmarker, FilesetResolver } from "@mediapipe/tasks-vision"
+import { FaceLandmarker, HandLandmarker, PoseLandmarker, FilesetResolver } from "@mediapipe/tasks-vision"
 
 export default function Camera() {
   const videoRef = useRef(null)
@@ -11,11 +11,13 @@ export default function Camera() {
   const fillerRef = useRef(0)
   const mediaRecorderRef = useRef(null)
   const audioChunksRef = useRef([])
-  const [stats, setStats] = useState({ lookingAway: 0, faceTouches: 0, fillers: 0 })
+  const slouchRef = useRef(0)
+  const [stats, setStats] = useState({ lookingAway: 0, faceTouches: 0, fillers: 0, slouching: 0 })
 
   useEffect(() => {
     let faceLandmarker
     let handLandmarker
+    let poseLandmarker
     let animationId
     let lastUpdate = Date.now()
 
@@ -99,6 +101,15 @@ export default function Camera() {
         numHands: 2
       })
 
+      poseLandmarker = await PoseLandmarker.createFromOptions(vision, {
+        baseOptions: {
+          modelAssetPath: "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task",
+          delegate: "GPU"
+        },
+        runningMode: "VIDEO",
+        numPoses: 1
+      })
+
       detectLoop()
     }
 
@@ -111,7 +122,7 @@ export default function Camera() {
       canvas.width = video.videoWidth || 640
       canvas.height = video.videoHeight || 480
 
-      if (video.videoWidth === 0 || !faceLandmarker || !handLandmarker) {
+      if (video.videoWidth === 0 || !faceLandmarker || !handLandmarker || !poseLandmarker) {
         animationId = requestAnimationFrame(detectLoop)
         return
       }
@@ -119,6 +130,7 @@ export default function Camera() {
       const now = performance.now()
       const faceResults = faceLandmarker.detectForVideo(video, now)
       const handResults = handLandmarker.detectForVideo(video, now)
+      const poseResults = poseLandmarker.detectForVideo(video, now)
 
       ctx.clearRect(0, 0, canvas.width, canvas.height)
 
@@ -172,14 +184,33 @@ export default function Camera() {
         }
       }
 
+      // posture detection using shoulder and ear positions
+      let isSlouching = false
+      if (poseResults?.landmarks?.[0]) {
+        const pose = poseResults.landmarks[0]
+        const leftShoulder = pose[11]
+        const rightShoulder = pose[12]
+        const leftEar = pose[7]
+        const rightEar = pose[8]
+
+        const shoulderMidY = (leftShoulder.y + rightShoulder.y) / 2
+        const earMidY = (leftEar.y + rightEar.y) / 2
+
+        // if ears are too close to shoulders vertically, you're slouching
+        const diff = shoulderMidY - earMidY
+        isSlouching = diff < 0.25
+      }
+
       const nowMs = Date.now()
       if (nowMs - lastUpdate >= 1000) {
         if (isLookingAway) lookingAwayRef.current += 1
         if (isTouchingFace) faceTouchRef.current += 1
+        if (isSlouching) slouchRef.current += 1
         setStats({
           lookingAway: lookingAwayRef.current,
           faceTouches: faceTouchRef.current,
-          fillers: fillerRef.current
+          fillers: fillerRef.current,
+          slouching: slouchRef.current
         })
         lastUpdate = nowMs
       }
@@ -215,6 +246,7 @@ export default function Camera() {
         <div>Looked away: <span className="text-red-400 font-bold">{stats.lookingAway}s</span></div>
         <div>Face touches: <span className="text-yellow-400 font-bold">{stats.faceTouches}s</span></div>
         <div>Filler words: <span className="text-purple-400 font-bold">{stats.fillers}</span></div>
+        <div>Slouching: <span className="text-blue-400 font-bold">{stats.slouching}s</span></div>
       </div>
     </div>
   )
