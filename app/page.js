@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import Camera from "./components/Camera"
+import InterviewSession from "./components/InterviewSession"
 import Setup from "./components/Setup"
 
 export default function Home() {
@@ -21,7 +21,7 @@ export default function Home() {
       <div className="flex flex-col items-center justify-center min-h-[calc(100vh-57px)] px-8 py-16">
         {!interview
           ? <Setup onStart={setInterview} />
-          : <Camera interview={interview} />
+          : <InterviewSession interview={interview} />
         }
       </div>
     </main>
