@@ -3,37 +3,88 @@
 import { useRef, useEffect, useState } from "react"
 import { FaceLandmarker, HandLandmarker, PoseLandmarker, FilesetResolver } from "@mediapipe/tasks-vision"
 
+const METRICS = [
+  { key: "lookingAway",  label: "Looked away",   unit: "s",  color: "text-red-400",    dot: "bg-red-400",    glow: "rgba(248,113,113,0.5)"  },
+  { key: "faceTouches",  label: "Face touches",  unit: "s",  color: "text-amber-400",  dot: "bg-amber-400",  glow: "rgba(251,191,36,0.5)"   },
+  { key: "fillers",      label: "Filler words",  unit: "",   color: "text-violet-400", dot: "bg-violet-400", glow: "rgba(167,139,250,0.5)"  },
+  { key: "slouching",    label: "Slouching",     unit: "s",  color: "text-sky-400",    dot: "bg-sky-400",    glow: "rgba(56,189,248,0.5)"   },
+]
+
+function StatCard({ label, value, unit, color, dot, glow }) {
+  return (
+    <div className="bg-white/[0.03] border border-white/[0.07] rounded-xl p-4 flex flex-col gap-2 flex-1 min-w-[110px]">
+      <div className="flex items-center gap-1.5">
+        <div className={`w-1.5 h-1.5 rounded-full ${dot}`} style={{ boxShadow: `0 0 5px ${glow}` }} />
+        <span className="text-white/30 text-[10px] uppercase tracking-[0.16em] font-medium">{label}</span>
+      </div>
+      <div className="flex items-baseline gap-1">
+        <span className={`text-2xl font-semibold tabular-nums leading-none ${color}`}>{value}</span>
+        {unit && <span className="text-white/20 text-xs">{unit}</span>}
+      </div>
+    </div>
+  )
+}
+
+function LiveBadge({ active, label }) {
+  return (
+    <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium transition-all duration-300 ${
+      active
+        ? "bg-red-500/[0.1] text-red-400 border border-red-500/20"
+        : "bg-white/[0.03] text-white/25 border border-white/[0.06]"
+    }`}>
+      <div
+        className={`w-1.5 h-1.5 rounded-full transition-all duration-300 ${active ? "bg-red-400 animate-pulse" : "bg-white/15"}`}
+        style={active ? { boxShadow: '0 0 6px rgba(248,113,113,0.8)' } : {}}
+      />
+      {label}
+    </div>
+  )
+}
+
+function Spinner() {
+  return (
+    <div
+      className="w-4 h-4 rounded-full border-2 border-white/10 border-t-white/50 animate-spin"
+    />
+  )
+}
+
 export default function Camera() {
   const videoRef = useRef(null)
   const canvasRef = useRef(null)
   const lookingAwayRef = useRef(0)
   const faceTouchRef = useRef(0)
   const fillerRef = useRef(0)
+  const slouchRef = useRef(0)
   const mediaRecorderRef = useRef(null)
   const audioChunksRef = useRef([])
-  const slouchRef = useRef(0)
-  const [stats, setStats] = useState({ lookingAway: 0, faceTouches: 0, fillers: 0, slouching: 0 })
-  const [sessionState, setSessionState] = useState("idle") // idle, active, done
-  const [report, setReport] = useState("")
   const sessionStartRef = useRef(null)
 
-  async function getReport() {
-    const duration = Math.floor((Date.now() - sessionStartRef.current) / 1000)
-    const res = await fetch("/api/report", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ stats, duration })
-    })
-    const { report } = await res.json()
-    setReport(report)
-  }
+  const [stats, setStats] = useState({ lookingAway: 0, faceTouches: 0, fillers: 0, slouching: 0 })
+  const [liveSignals, setLiveSignals] = useState({ lookingAway: false, touchingFace: false, slouching: false })
+  const [sessionState, setSessionState] = useState("idle")
+  const [report, setReport] = useState("")
+  const [reportLoading, setReportLoading] = useState(false)
+  const [timer, setTimer] = useState(0)
 
   useEffect(() => {
+    if (sessionState !== "active") return
+    const interval = setInterval(() => {
+      setTimer(Math.floor((Date.now() - sessionStartRef.current) / 1000))
+    }, 1000)
+    return () => clearInterval(interval)
+  }, [sessionState])
+
+  useEffect(() => {
+    if (sessionState !== "active") return
+
     let faceLandmarker
     let handLandmarker
     let poseLandmarker
     let animationId
     let lastUpdate = Date.now()
+
+    sessionStartRef.current = Date.now()
 
     async function startAudioRecording() {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
@@ -48,18 +99,12 @@ export default function Camera() {
       mediaRecorder.onstop = async () => {
         const blob = new Blob(audioChunksRef.current, { type: "audio/webm" })
         audioChunksRef.current = []
-
         const formData = new FormData()
         formData.append("audio", blob, "audio.webm")
-
         try {
-          const res = await fetch("/api/transcribe", {
-            method: "POST",
-            body: formData,
-          })
+          const res = await fetch("/api/transcribe", { method: "POST", body: formData })
           const { text } = await res.json()
           console.log("transcript:", text)
-
           const fillerWords = ["um", "uh", "like", "you know", "basically", "literally"]
           let count = 0
           for (const word of fillerWords) {
@@ -73,14 +118,17 @@ export default function Camera() {
         } catch (e) {
           console.log("transcription error:", e)
         }
-
-        // restart recording
+        if (mediaRecorderRef.current?.state !== "inactive") return
         mediaRecorder.start()
-        setTimeout(() => mediaRecorder.stop(), 10000)
+        setTimeout(() => {
+          if (mediaRecorder.state === "recording") mediaRecorder.stop()
+        }, 5000)
       }
 
       mediaRecorder.start()
-      setTimeout(() => mediaRecorder.stop(), 10000)
+      setTimeout(() => {
+        if (mediaRecorder.state === "recording") mediaRecorder.stop()
+      }, 5000)
     }
 
     async function setup() {
@@ -150,6 +198,7 @@ export default function Camera() {
 
       let isLookingAway = false
       let isTouchingFace = false
+      let isSlouching = false
 
       if (faceResults?.faceLandmarks?.[0]) {
         const landmarks = faceResults.faceLandmarks[0]
@@ -157,15 +206,13 @@ export default function Camera() {
         for (const landmark of landmarks) {
           ctx.beginPath()
           ctx.arc(landmark.x * canvas.width, landmark.y * canvas.height, 1.5, 0, 2 * Math.PI)
-          ctx.fillStyle = "#00ff88"
+          ctx.fillStyle = "rgba(52, 211, 153, 0.6)"
           ctx.fill()
         }
 
         const matrix = faceResults.facialTransformationMatrixes?.[0]?.data
         if (matrix) {
-          const lookLeftRight = Math.abs(matrix[8])
-          const lookUpDown = Math.abs(matrix[9])
-          isLookingAway = lookLeftRight > 0.3 || lookUpDown > 0.3
+          isLookingAway = Math.abs(matrix[8]) > 0.3 || Math.abs(matrix[9]) > 0.3
         }
 
         if (handResults?.landmarks?.length > 0) {
@@ -174,8 +221,7 @@ export default function Camera() {
               for (const facePoint of landmarks) {
                 const dx = handPoint.x - facePoint.x
                 const dy = handPoint.y - facePoint.y
-                const dist = Math.sqrt(dx * dx + dy * dy)
-                if (dist < 0.08) {
+                if (Math.sqrt(dx * dx + dy * dy) < 0.08) {
                   isTouchingFace = true
                   break
                 }
@@ -192,27 +238,17 @@ export default function Camera() {
           for (const point of hand) {
             ctx.beginPath()
             ctx.arc(point.x * canvas.width, point.y * canvas.height, 3, 0, 2 * Math.PI)
-            ctx.fillStyle = isTouchingFace ? "#ff4444" : "#4488ff"
+            ctx.fillStyle = isTouchingFace ? "rgba(248, 113, 113, 0.8)" : "rgba(96, 165, 250, 0.6)"
             ctx.fill()
           }
         }
       }
 
-      // posture detection using shoulder and ear positions
-      let isSlouching = false
       if (poseResults?.landmarks?.[0]) {
         const pose = poseResults.landmarks[0]
-        const leftShoulder = pose[11]
-        const rightShoulder = pose[12]
-        const leftEar = pose[7]
-        const rightEar = pose[8]
-
-        const shoulderMidY = (leftShoulder.y + rightShoulder.y) / 2
-        const earMidY = (leftEar.y + rightEar.y) / 2
-
-        // if ears are too close to shoulders vertically, you're slouching
-        const diff = shoulderMidY - earMidY
-        isSlouching = diff < 0.25
+        const shoulderMidY = (pose[11].y + pose[12].y) / 2
+        const earMidY = (pose[7].y + pose[8].y) / 2
+        isSlouching = (shoulderMidY - earMidY) < 0.25
       }
 
       const nowMs = Date.now()
@@ -226,18 +262,24 @@ export default function Camera() {
           fillers: fillerRef.current,
           slouching: slouchRef.current
         })
+        setLiveSignals({ lookingAway: isLookingAway, touchingFace: isTouchingFace, slouching: isSlouching })
         lastUpdate = nowMs
       }
 
       animationId = requestAnimationFrame(detectLoop)
     }
 
-    if (sessionState === "active") {
-      sessionStartRef.current = Date.now()
-      startAudioRecording()
-      setup()
+    startAudioRecording()
+    setup()
+
+    return () => {
+      cancelAnimationFrame(animationId)
+      if (mediaRecorderRef.current) mediaRecorderRef.current.stop()
     }
+  }, [sessionState])
+
   async function getReport() {
+    setReportLoading(true)
     const duration = Math.floor((Date.now() - sessionStartRef.current) / 1000)
     const res = await fetch("/api/report", {
       method: "POST",
@@ -246,80 +288,149 @@ export default function Camera() {
     })
     const { report } = await res.json()
     setReport(report)
+    setReportLoading(false)
   }
 
-    return () => {
-      cancelAnimationFrame(animationId)
-      if (mediaRecorderRef.current) mediaRecorderRef.current.stop()
-    }
-  }, [sessionState])
+  function formatTime(s) {
+    const m = Math.floor(s / 60)
+    const sec = s % 60
+    return `${m}:${sec.toString().padStart(2, "0")}`
+  }
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen bg-black gap-6">
+    <div className="flex flex-col items-center justify-center min-h-[calc(100vh-57px)] px-8 py-12">
+
+      {/* IDLE */}
       {sessionState === "idle" && (
-        <div className="flex flex-col items-center gap-6">
-          <h1 className="text-white text-5xl font-bold">Telltale</h1>
-          <p className="text-gray-400 text-xl">Your AI interview coach</p>
+        <div className="relative flex flex-col items-center gap-10 text-center max-w-lg">
+          {/* ambient glow */}
+          <div
+            className="absolute inset-0 pointer-events-none -z-10"
+            style={{
+              background: 'radial-gradient(ellipse 70% 50% at 50% 70%, rgba(16,185,129,0.07) 0%, transparent 70%)',
+              filter: 'blur(20px)',
+            }}
+          />
+
+          <div className="flex flex-col gap-4">
+            <p className="text-white/25 text-xs tracking-[0.22em] uppercase font-medium">AI Interview Coach</p>
+            <h1 className="text-5xl font-semibold tracking-tight leading-[1.1]">
+              Practice like it's real.
+            </h1>
+            <p className="text-white/40 text-base leading-relaxed max-w-sm mx-auto">
+              See your eye contact, posture, filler words, and nervous habits as they happen.
+            </p>
+          </div>
+
+          <div className="flex gap-2 flex-wrap justify-center">
+            {METRICS.map(({ label, dot, glow }) => (
+              <span
+                key={label}
+                className="flex items-center gap-2 bg-white/[0.04] border border-white/[0.08] rounded-full px-3.5 py-1.5 text-sm text-white/50"
+              >
+                <span className={`w-1.5 h-1.5 rounded-full ${dot}`} style={{ boxShadow: `0 0 5px ${glow}` }} />
+                {label}
+              </span>
+            ))}
+          </div>
+
           <button
             onClick={() => setSessionState("active")}
-            className="bg-green-500 hover:bg-green-600 text-white text-xl font-bold px-12 py-4 rounded-2xl"
+            className="bg-emerald-500 hover:bg-emerald-400 text-black font-semibold text-base px-9 py-3 rounded-xl transition-colors cursor-pointer"
+            style={{ boxShadow: '0 0 40px rgba(16,185,129,0.3)' }}
           >
-            Start Session
+            Start session
           </button>
         </div>
       )}
 
+      {/* ACTIVE */}
       {sessionState === "active" && (
-        <div className="flex flex-col items-center gap-6">
-          <div className="relative">
-            <video ref={videoRef} autoPlay playsInline className="rounded-xl w-[640px] h-[480px] object-cover" />
+        <div className="flex flex-col items-center gap-5 w-full max-w-3xl">
+
+          {/* status bar */}
+          <div className="flex items-center justify-between w-full">
+            <div className="flex gap-2 flex-wrap">
+              <LiveBadge active={liveSignals.lookingAway} label="Looking away" />
+              <LiveBadge active={liveSignals.touchingFace} label="Face touch" />
+              <LiveBadge active={liveSignals.slouching} label="Slouching" />
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-1.5 h-1.5 rounded-full bg-red-400 animate-pulse" style={{ boxShadow: '0 0 6px rgba(248,113,113,0.8)' }} />
+              <span className="font-mono text-white/35 text-sm tabular-nums">{formatTime(timer)}</span>
+            </div>
+          </div>
+
+          {/* camera feed */}
+          <div
+            className="relative rounded-2xl overflow-hidden border border-white/[0.08]"
+            style={{ boxShadow: '0 0 0 1px rgba(255,255,255,0.02), 0 24px 64px rgba(0,0,0,0.6)' }}
+          >
+            <video ref={videoRef} autoPlay playsInline className="w-[640px] h-[480px] object-cover block" />
             <canvas ref={canvasRef} className="absolute top-0 left-0 w-[640px] h-[480px]" />
           </div>
-          <div className="flex gap-8 text-white text-xl">
-            <div>👀 Looked away: <span className="text-red-400 font-bold">{stats.lookingAway}s</span></div>
-            <div>🤚 Face touches: <span className="text-yellow-400 font-bold">{stats.faceTouches}s</span></div>
-            <div>🗣️ Filler words: <span className="text-purple-400 font-bold">{stats.fillers}</span></div>
-            <div>🪑 Slouching: <span className="text-blue-400 font-bold">{stats.slouching}s</span></div>
+
+          {/* stats + end */}
+          <div className="flex gap-3 w-full items-stretch">
+            {METRICS.map(({ key, label, unit, color, dot, glow }) => (
+              <StatCard key={key} label={label} value={stats[key]} unit={unit} color={color} dot={dot} glow={glow} />
+            ))}
+            <button
+              onClick={() => setSessionState("done")}
+              className="flex-shrink-0 bg-white/[0.03] hover:bg-red-500/[0.08] border border-white/[0.07] hover:border-red-500/20 text-white/35 hover:text-red-400 transition-all font-medium px-5 rounded-xl text-sm cursor-pointer"
+            >
+              End
+            </button>
           </div>
-          <button
-            onClick={() => setSessionState("done")}
-            className="bg-red-500 hover:bg-red-600 text-white text-xl font-bold px-12 py-4 rounded-2xl"
-          >
-            End Session
-          </button>
         </div>
       )}
 
+      {/* DONE */}
       {sessionState === "done" && (
-        <div className="flex flex-col items-center gap-6 text-white max-w-2xl text-center">
-          <h2 className="text-4xl font-bold">Session Complete</h2>
-          <div className="flex flex-col gap-3 text-xl">
-            <div>👀 Looked away: <span className="text-red-400 font-bold">{stats.lookingAway}s</span></div>
-            <div>🤚 Face touches: <span className="text-yellow-400 font-bold">{stats.faceTouches}s</span></div>
-            <div>🗣️ Filler words: <span className="text-purple-400 font-bold">{stats.fillers}</span></div>
-            <div>🪑 Slouching: <span className="text-blue-400 font-bold">{stats.slouching}s</span></div>
+        <div className="flex flex-col items-center gap-8 w-full max-w-xl">
+
+          <div className="text-center flex flex-col gap-2">
+            <h2 className="text-4xl font-semibold tracking-tight">Session complete</h2>
+            <span className="font-mono text-white/25 text-sm tabular-nums">{formatTime(timer)}</span>
           </div>
 
-          {!report && (
+          <div className="grid grid-cols-2 gap-3 w-full">
+            {METRICS.map(({ key, label, unit, color, dot, glow }) => (
+              <StatCard key={key} label={label} value={stats[key]} unit={unit} color={color} dot={dot} glow={glow} />
+            ))}
+          </div>
+
+          {!report && !reportLoading && (
             <button
               onClick={getReport}
-              className="bg-purple-500 hover:bg-purple-600 text-white text-xl font-bold px-12 py-4 rounded-2xl"
+              className="bg-emerald-500 hover:bg-emerald-400 text-black font-semibold text-base px-8 py-3 rounded-xl transition-colors w-full cursor-pointer"
+              style={{ boxShadow: '0 0 40px rgba(16,185,129,0.2)' }}
             >
-              Get AI Report
+              Get coaching report
             </button>
           )}
 
+          {reportLoading && (
+            <div className="flex items-center gap-3 text-white/30 text-sm py-2">
+              <Spinner />
+              Analyzing your session...
+            </div>
+          )}
+
           {report && (
-            <div className="bg-gray-900 rounded-2xl p-6 text-left text-gray-200 whitespace-pre-wrap">
+            <div
+              className="bg-white/[0.03] border border-white/[0.07] rounded-2xl p-6 text-white/55 leading-relaxed whitespace-pre-wrap text-sm w-full"
+              style={{ fontFeatureSettings: '"liga" 1' }}
+            >
               {report}
             </div>
           )}
 
           <button
             onClick={() => window.location.reload()}
-            className="bg-green-500 hover:bg-green-600 text-white text-xl font-bold px-12 py-4 rounded-2xl"
+            className="text-white/20 hover:text-white/45 transition-colors text-sm cursor-pointer"
           >
-            Start New Session
+            New session
           </button>
         </div>
       )}
