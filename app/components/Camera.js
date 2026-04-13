@@ -14,6 +14,19 @@ export default function Camera() {
   const slouchRef = useRef(0)
   const [stats, setStats] = useState({ lookingAway: 0, faceTouches: 0, fillers: 0, slouching: 0 })
   const [sessionState, setSessionState] = useState("idle") // idle, active, done
+  const [report, setReport] = useState("")
+  const sessionStartRef = useRef(null)
+
+  async function getReport() {
+    const duration = Math.floor((Date.now() - sessionStartRef.current) / 1000)
+    const res = await fetch("/api/report", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ stats, duration })
+    })
+    const { report } = await res.json()
+    setReport(report)
+  }
 
   useEffect(() => {
     let faceLandmarker
@@ -220,9 +233,20 @@ export default function Camera() {
     }
 
     if (sessionState === "active") {
+      sessionStartRef.current = Date.now()
       startAudioRecording()
       setup()
     }
+  async function getReport() {
+    const duration = Math.floor((Date.now() - sessionStartRef.current) / 1000)
+    const res = await fetch("/api/report", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ stats, duration })
+    })
+    const { report } = await res.json()
+    setReport(report)
+  }
 
     return () => {
       cancelAnimationFrame(animationId)
@@ -267,7 +291,7 @@ export default function Camera() {
       )}
 
       {sessionState === "done" && (
-        <div className="flex flex-col items-center gap-6 text-white">
+        <div className="flex flex-col items-center gap-6 text-white max-w-2xl text-center">
           <h2 className="text-4xl font-bold">Session Complete</h2>
           <div className="flex flex-col gap-3 text-xl">
             <div>👀 Looked away: <span className="text-red-400 font-bold">{stats.lookingAway}s</span></div>
@@ -275,6 +299,22 @@ export default function Camera() {
             <div>🗣️ Filler words: <span className="text-purple-400 font-bold">{stats.fillers}</span></div>
             <div>🪑 Slouching: <span className="text-blue-400 font-bold">{stats.slouching}s</span></div>
           </div>
+
+          {!report && (
+            <button
+              onClick={getReport}
+              className="bg-purple-500 hover:bg-purple-600 text-white text-xl font-bold px-12 py-4 rounded-2xl"
+            >
+              Get AI Report
+            </button>
+          )}
+
+          {report && (
+            <div className="bg-gray-900 rounded-2xl p-6 text-left text-gray-200 whitespace-pre-wrap">
+              {report}
+            </div>
+          )}
+
           <button
             onClick={() => window.location.reload()}
             className="bg-green-500 hover:bg-green-600 text-white text-xl font-bold px-12 py-4 rounded-2xl"
