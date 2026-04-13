@@ -13,12 +13,17 @@ export async function POST(req) {
       messages: [
         {
           role: "user",
-          content: `Generate exactly 5 realistic interview questions for a ${role} position at ${company}. 
-          
-Mix of behavioral and technical questions appropriate for the role. Make them specific to ${company}'s culture and the ${role} role — not generic.
+          content: `Generate exactly 5 realistic interview questions for a candidate interviewing for a ${role} position at ${company}.
 
-Return ONLY a JSON array of 5 strings, no other text, no markdown, no explanation. Example format:
-["Question 1", "Question 2", "Question 3", "Question 4", "Question 5"]`
+      Mix of:
+      - 2 behavioral questions (tell me about a time...)
+      - 2 situational questions (how would you approach...)
+      - 1 role-specific question about their experience
+
+      Keep questions natural and conversational like a real interviewer would ask. Don't mention ${company} by name in every question — only where it genuinely makes sense. Don't be overly specific about internal tools, teams, or processes at ${company} since the candidate hasn't worked there.
+
+      Return ONLY a JSON array of 5 strings, no other text, no markdown, no explanation. Example format:
+      ["Question 1", "Question 2", "Question 3", "Question 4", "Question 5"]`
         }
       ]
     })
