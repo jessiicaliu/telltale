@@ -13,6 +13,7 @@ export default function Camera() {
   const audioChunksRef = useRef([])
   const slouchRef = useRef(0)
   const [stats, setStats] = useState({ lookingAway: 0, faceTouches: 0, fillers: 0, slouching: 0 })
+  const [sessionState, setSessionState] = useState("idle") // idle, active, done
 
   useEffect(() => {
     let faceLandmarker
@@ -218,36 +219,70 @@ export default function Camera() {
       animationId = requestAnimationFrame(detectLoop)
     }
 
-    startAudioRecording()
-    setup()
+    if (sessionState === "active") {
+      startAudioRecording()
+      setup()
+    }
 
     return () => {
       cancelAnimationFrame(animationId)
       if (mediaRecorderRef.current) mediaRecorderRef.current.stop()
     }
-  }, [])
+  }, [sessionState])
 
   return (
-    <div className="flex flex-col items-center gap-6">
-      <div className="relative">
-        <video
-          ref={videoRef}
-          autoPlay
-          playsInline
-          className="rounded-xl w-[640px] h-[480px] object-cover"
-        />
-        <canvas
-          ref={canvasRef}
-          className="absolute top-0 left-0 w-[640px] h-[480px]"
-        />
-      </div>
+    <div className="flex flex-col items-center justify-center min-h-screen bg-black gap-6">
+      {sessionState === "idle" && (
+        <div className="flex flex-col items-center gap-6">
+          <h1 className="text-white text-5xl font-bold">Telltale</h1>
+          <p className="text-gray-400 text-xl">Your AI interview coach</p>
+          <button
+            onClick={() => setSessionState("active")}
+            className="bg-green-500 hover:bg-green-600 text-white text-xl font-bold px-12 py-4 rounded-2xl"
+          >
+            Start Session
+          </button>
+        </div>
+      )}
 
-      <div className="flex gap-8 text-white text-xl">
-        <div>Looked away: <span className="text-red-400 font-bold">{stats.lookingAway}s</span></div>
-        <div>Face touches: <span className="text-yellow-400 font-bold">{stats.faceTouches}s</span></div>
-        <div>Filler words: <span className="text-purple-400 font-bold">{stats.fillers}</span></div>
-        <div>Slouching: <span className="text-blue-400 font-bold">{stats.slouching}s</span></div>
-      </div>
+      {sessionState === "active" && (
+        <div className="flex flex-col items-center gap-6">
+          <div className="relative">
+            <video ref={videoRef} autoPlay playsInline className="rounded-xl w-[640px] h-[480px] object-cover" />
+            <canvas ref={canvasRef} className="absolute top-0 left-0 w-[640px] h-[480px]" />
+          </div>
+          <div className="flex gap-8 text-white text-xl">
+            <div>👀 Looked away: <span className="text-red-400 font-bold">{stats.lookingAway}s</span></div>
+            <div>🤚 Face touches: <span className="text-yellow-400 font-bold">{stats.faceTouches}s</span></div>
+            <div>🗣️ Filler words: <span className="text-purple-400 font-bold">{stats.fillers}</span></div>
+            <div>🪑 Slouching: <span className="text-blue-400 font-bold">{stats.slouching}s</span></div>
+          </div>
+          <button
+            onClick={() => setSessionState("done")}
+            className="bg-red-500 hover:bg-red-600 text-white text-xl font-bold px-12 py-4 rounded-2xl"
+          >
+            End Session
+          </button>
+        </div>
+      )}
+
+      {sessionState === "done" && (
+        <div className="flex flex-col items-center gap-6 text-white">
+          <h2 className="text-4xl font-bold">Session Complete</h2>
+          <div className="flex flex-col gap-3 text-xl">
+            <div>👀 Looked away: <span className="text-red-400 font-bold">{stats.lookingAway}s</span></div>
+            <div>🤚 Face touches: <span className="text-yellow-400 font-bold">{stats.faceTouches}s</span></div>
+            <div>🗣️ Filler words: <span className="text-purple-400 font-bold">{stats.fillers}</span></div>
+            <div>🪑 Slouching: <span className="text-blue-400 font-bold">{stats.slouching}s</span></div>
+          </div>
+          <button
+            onClick={() => window.location.reload()}
+            className="bg-green-500 hover:bg-green-600 text-white text-xl font-bold px-12 py-4 rounded-2xl"
+          >
+            Start New Session
+          </button>
+        </div>
+      )}
     </div>
   )
 }
