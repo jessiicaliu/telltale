@@ -8,8 +8,21 @@ import { LiveBadge } from "./ui/LiveBadge"
 import { ReportDisplay, Spinner } from "./ui/ReportDisplay"
 import Question from "./Question"
 
-function AnswerCard({ number, question, answer, stats, role, company }) {
-  const [feedback, setFeedback] = useState("")
+function StarBadge({ label, hit }) {
+  return (
+    <span className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium border ${
+      hit
+        ? "bg-emerald-500/10 border-emerald-500/25 text-emerald-400"
+        : "bg-white/[0.03] border-white/[0.07] text-white/20"
+    }`}>
+      <span className={hit ? "text-emerald-400" : "text-white/15"}>{hit ? "✓" : "✗"}</span>
+      {label}
+    </span>
+  )
+}
+
+function AnswerCard({ number, question, answer, stats, role, company, type }) {
+  const [result, setResult] = useState(null)
   const [loading, setLoading] = useState(false)
 
   async function getFeedback() {
@@ -17,10 +30,10 @@ function AnswerCard({ number, question, answer, stats, role, company }) {
     const res = await fetch("/api/evaluate", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ question, answer, role, company })
+      body: JSON.stringify({ question, answer, role, company, type })
     })
-    const { feedback } = await res.json()
-    setFeedback(feedback)
+    const data = await res.json()
+    setResult(data)
     setLoading(false)
   }
 
@@ -47,7 +60,7 @@ function AnswerCard({ number, question, answer, stats, role, company }) {
         <span>🪑 {stats.slouching}s slouching</span>
       </div>
 
-      {!feedback && !loading && (
+      {!result && !loading && (
         <button onClick={getFeedback}
           className="text-xs text-emerald-400/60 hover:text-emerald-400 transition-colors text-left cursor-pointer"
           style={{ fontFamily: 'JetBrains Mono, monospace' }}>
@@ -61,8 +74,21 @@ function AnswerCard({ number, question, answer, stats, role, company }) {
         </div>
       )}
 
-      {feedback && (
-        <p className="text-sm text-white/50 leading-relaxed border-t border-white/5 pt-4">{feedback}</p>
+      {result && (
+        <div className="flex flex-col gap-3 border-t border-white/5 pt-4">
+          {result.star && (
+            <div className="flex flex-col gap-2">
+              <span className="text-xs text-white/20 uppercase tracking-widest" style={{ fontFamily: 'JetBrains Mono, monospace' }}>STAR structure</span>
+              <div className="flex gap-2 flex-wrap">
+                <StarBadge label="Situation" hit={result.star.situation} />
+                <StarBadge label="Task" hit={result.star.task} />
+                <StarBadge label="Action" hit={result.star.action} />
+                <StarBadge label="Result" hit={result.star.result} />
+              </div>
+            </div>
+          )}
+          <p className="text-sm text-white/50 leading-relaxed">{result.feedback}</p>
+        </div>
       )}
     </div>
   )
@@ -325,6 +351,7 @@ export default function Camera({ interview }) {
                 stats={a.stats}
                 role={interview.role}
                 company={interview.company}
+                type={interview.type}
               />
             ))}
           </div>
