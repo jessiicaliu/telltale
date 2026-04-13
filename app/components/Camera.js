@@ -66,6 +66,13 @@ export default function Camera() {
   const [report, setReport] = useState("")
   const [reportLoading, setReportLoading] = useState(false)
   const [timer, setTimer] = useState(0)
+  const [showDots, setShowDots] = useState(true)
+  const showDotsRef = useRef(true)
+
+  function toggleDots() {
+    showDotsRef.current = !showDotsRef.current
+    setShowDots(showDotsRef.current)
+  }
 
   useEffect(() => {
     if (sessionState !== "active") return
@@ -203,11 +210,13 @@ export default function Camera() {
       if (faceResults?.faceLandmarks?.[0]) {
         const landmarks = faceResults.faceLandmarks[0]
 
-        for (const landmark of landmarks) {
-          ctx.beginPath()
-          ctx.arc(landmark.x * canvas.width, landmark.y * canvas.height, 1.5, 0, 2 * Math.PI)
-          ctx.fillStyle = "rgba(52, 211, 153, 0.6)"
-          ctx.fill()
+        if (showDotsRef.current) {
+          for (const landmark of landmarks) {
+            ctx.beginPath()
+            ctx.arc(landmark.x * canvas.width, landmark.y * canvas.height, 1.5, 0, 2 * Math.PI)
+            ctx.fillStyle = "rgba(52, 211, 153, 0.6)"
+            ctx.fill()
+          }
         }
 
         const matrix = faceResults.facialTransformationMatrixes?.[0]?.data
@@ -233,7 +242,7 @@ export default function Camera() {
         }
       }
 
-      if (handResults?.landmarks?.length > 0) {
+      if (showDotsRef.current && handResults?.landmarks?.length > 0) {
         for (const hand of handResults.landmarks) {
           for (const point of hand) {
             ctx.beginPath()
@@ -368,6 +377,16 @@ export default function Camera() {
           >
             <video ref={videoRef} autoPlay playsInline className="w-[640px] h-[480px] object-cover block" />
             <canvas ref={canvasRef} className="absolute top-0 left-0 w-[640px] h-[480px]" />
+            <button
+              onClick={toggleDots}
+              className="absolute bottom-3 right-3 flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs font-medium cursor-pointer transition-colors"
+              style={{ background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(8px)', border: '1px solid rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.4)' }}
+            >
+              Dots
+              <div className={`relative w-7 h-4 rounded-full transition-colors duration-200 ${showDots ? 'bg-emerald-500' : 'bg-white/15'}`}>
+                <div className={`absolute top-0.5 w-3 h-3 rounded-full bg-white shadow-sm transition-all duration-200 ${showDots ? 'left-[14px]' : 'left-0.5'}`} />
+              </div>
+            </button>
           </div>
 
           {/* stats + end */}
