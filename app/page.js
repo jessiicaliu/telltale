@@ -1,21 +1,29 @@
 "use client"
 
+import { useState } from "react"
 import Camera from "./components/Camera"
+import Setup from "./components/Setup"
 
 export default function Home() {
+  const [interview, setInterview] = useState(null)
+
   return (
-    <main className="min-h-screen" style={{ background: '#06060a' }}>
-      <nav className="border-b border-white/[0.06] px-8 py-4 flex items-center justify-between">
-        <div className="flex items-center gap-2.5">
-          <div
-            className="w-2 h-2 rounded-full bg-emerald-400"
-            style={{ boxShadow: '0 0 8px rgba(52, 211, 153, 0.7)' }}
-          />
-          <span className="text-white font-semibold tracking-tight">telltale</span>
+    <main className="min-h-screen bg-[#080810] text-white">
+      <nav className="border-b border-white/5 px-8 py-4 flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+          <span className="text-white font-semibold tracking-tight text-lg">Telltale</span>
         </div>
-        <span className="text-white/20 text-xs tracking-[0.18em] uppercase font-medium">Interview Coach</span>
+        <span className="text-white/30 text-sm" style={{ fontFamily: 'JetBrains Mono, monospace' }}>
+          {interview ? `${interview.role} @ ${interview.company}` : "AI Interview Coach"}
+        </span>
       </nav>
-      <Camera />
+      <div className="flex flex-col items-center justify-center min-h-[calc(100vh-57px)] px-8 py-16">
+        {!interview
+          ? <Setup onStart={setInterview} />
+          : <Camera interview={interview} />
+        }
+      </div>
     </main>
   )
 }
