@@ -21,7 +21,6 @@ export default function Setup({ onStart }) {
       const { questions, error } = await res.json()
       if (error) throw new Error(error)
       onStart({ role, company, questions })
-      console.log("questions:", questions)
     } catch (e) {
       setError("Something went wrong. Try again.")
     }

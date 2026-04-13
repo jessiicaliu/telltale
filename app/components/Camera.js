@@ -6,8 +6,11 @@ import { useAudioTranscription } from "../hooks/useAudioTranscription"
 import { METRICS, StatCard } from "./ui/StatCard"
 import { LiveBadge } from "./ui/LiveBadge"
 import { ReportDisplay, Spinner } from "./ui/ReportDisplay"
+import Question from "./Question"
 
-export default function Camera() {
+export default function Camera({ interview }) {
+    const [currentQ, setCurrentQ] = useState(0)
+    const [answers, setAnswers] = useState([])
   const videoRef = useRef(null)
   const canvasRef = useRef(null)
   const sessionStartRef = useRef(null)
@@ -105,8 +108,13 @@ export default function Camera() {
       )}
 
       {/* ACTIVE */}
-      {sessionState === "active" && (
+      {sessionState === "active" && interview && (
         <div className="flex flex-col items-center gap-5 w-full max-w-3xl">
+          <Question
+            question={interview.questions[currentQ]}
+            number={currentQ + 1}
+            total={interview.questions.length}
+          />
           <div className="flex items-center justify-between w-full">
             <div className="flex gap-2 flex-wrap">
               <LiveBadge active={liveSignals.lookingAway} label="Looking away" />
@@ -142,10 +150,16 @@ export default function Camera() {
               <StatCard key={key} label={label} value={stats[key]} unit={unit} color={color} dot={dot} glow={glow} />
             ))}
             <button
-              onClick={() => setSessionState("done")}
-              className="flex-shrink-0 bg-white/[0.03] hover:bg-red-500/[0.08] border border-white/[0.07] hover:border-red-500/20 text-white/35 hover:text-red-400 transition-all font-medium px-5 rounded-xl text-sm cursor-pointer"
+              onClick={() => {
+                if (currentQ < interview.questions.length - 1) {
+                  setCurrentQ(prev => prev + 1)
+                } else {
+                  setSessionState("done")
+                }
+              }}
+              className="flex-shrink-0 px-6 rounded-2xl text-sm font-medium text-white/30 hover:text-emerald-400 border border-white/5 hover:border-emerald-500/20 hover:bg-emerald-500/5 transition-all whitespace-nowrap"
             >
-              End
+              {currentQ < interview.questions.length - 1 ? "Next →" : "Finish"}
             </button>
           </div>
         </div>
