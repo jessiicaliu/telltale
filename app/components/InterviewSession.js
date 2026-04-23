@@ -24,7 +24,7 @@ function computeFillerBreakdown(text) {
   return breakdown
 }
 
-export default function InterviewSession({ interview }) {
+export default function InterviewSession({ interview, onReset }) {
   const [currentQ, setCurrentQ] = useState(0)
   const [answers, setAnswers] = useState([])
   const [sessionState, setSessionState] = useState("idle")
@@ -383,7 +383,7 @@ export default function InterviewSession({ interview }) {
 
           {reportData && <ReportDisplay report={reportData} />}
 
-          <button onClick={() => window.location.reload()}
+          <button onClick={onReset}
             className="text-white/20 hover:text-white/45 transition-colors text-sm cursor-pointer">
             New session
           </button>

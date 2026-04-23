@@ -21,7 +21,7 @@ export default function Home() {
       </nav>
       <div className="flex flex-col items-center justify-center min-h-[calc(100vh-57px)] px-8 py-16">
         {interview
-          ? <InterviewSession interview={interview} />
+          ? <InterviewSession interview={interview} onReset={() => setInterview(null)} />
           : generating
           ? (
             <div className="flex flex-col items-center gap-4">
