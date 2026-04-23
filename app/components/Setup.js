@@ -61,6 +61,7 @@ export default function Setup({ onStart, onLoading }) {
           placeholder="Role — e.g. Software Engineer"
           className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3.5 text-white placeholder-white/20 outline-none focus:border-emerald-500/50 transition-colors text-sm"
           style={{ fontFamily: 'JetBrains Mono, monospace' }}
+          onKeyDown={e => e.key === "Enter" && handleGenerate()}
         />
         <input
           value={company}
