@@ -12,6 +12,7 @@ const INTERVIEW_TYPES = [
 export default function Setup({ onStart, onLoading }) {
   const [role, setRole] = useState("")
   const [company, setCompany] = useState("")
+  const [jd, setJd] = useState("")
   const [type, setType] = useState("behavioral")
   const [count, setCount] = useState(5)
   const [loading, setLoading] = useState(false)
@@ -26,7 +27,7 @@ export default function Setup({ onStart, onLoading }) {
       const res = await fetch("/api/questions", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ role, company, type, count })
+        body: JSON.stringify({ role, company, type, count, jd: jd.trim() || null })
       })
       const { questions, error } = await res.json()
       if (error) throw new Error(error)
@@ -70,6 +71,14 @@ export default function Setup({ onStart, onLoading }) {
           className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3.5 text-white placeholder-white/20 outline-none focus:border-emerald-500/50 transition-colors text-sm"
           style={{ fontFamily: 'JetBrains Mono, monospace' }}
           onKeyDown={e => e.key === "Enter" && handleGenerate()}
+        />
+        <textarea
+          value={jd}
+          onChange={e => setJd(e.target.value)}
+          placeholder="Paste job description (optional)"
+          rows={3}
+          className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3.5 text-white placeholder-white/20 outline-none focus:border-emerald-500/50 transition-colors text-sm resize-none"
+          style={{ fontFamily: 'JetBrains Mono, monospace' }}
         />
         <div className="grid grid-cols-4 gap-2">
           {INTERVIEW_TYPES.map(({ id, label }) => (

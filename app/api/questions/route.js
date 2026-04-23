@@ -5,7 +5,7 @@ const groq = new Groq({ apiKey: process.env.GROQ_API_KEY })
 
 export async function POST(req) {
   try {
-    const { role, company, type = "behavioral", count = 5 } = await req.json()
+    const { role, company, type = "behavioral", count = 5, jd = null } = await req.json()
 
     const typePrompts = {
       behavioral: `Mix of:
@@ -37,6 +37,7 @@ export async function POST(req) {
 
       ${typePrompts[type] ?? typePrompts.behavioral}
 
+      ${jd ? `Use this job description to make the questions more specific and relevant:\n${jd}\n` : ""}
       Keep questions natural and conversational like a real interviewer would ask. Don't mention ${company} by name in every question — only where it genuinely makes sense. Don't be overly specific about internal tools, teams, or processes at ${company} since the candidate hasn't worked there.
 
       Return ONLY a JSON array of ${count} strings, no other text, no markdown, no explanation. Example format:
