@@ -345,7 +345,7 @@ export default function InterviewSession({ interview, onReset }) {
           <div className="text-center flex flex-col gap-2">
             <h2 className="text-4xl font-semibold tracking-tight">Interview complete</h2>
             <p className="text-white/30 text-sm" style={{ fontFamily: 'JetBrains Mono, monospace' }}>
-              {interview.role} @ {interview.company} · {formatTime(timer)}
+              {interview.role} @ {interview.company} · {interview.type} · {formatTime(timer)}
             </p>
           </div>
 
