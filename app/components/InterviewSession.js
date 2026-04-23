@@ -178,7 +178,11 @@ export default function InterviewSession({ interview }) {
   async function getReport() {
     setReportLoading(true)
     const duration = Math.floor((Date.now() - sessionStartRef.current) / 1000)
-    const fullTranscript = answers.map((a, i) => `Q${i + 1}: ${a.question}\nA: ${a.answer}`).join("\n\n")
+    const fullTranscript = answers.map((a, i) => {
+      let entry = `Q${i + 1}: ${a.question}\nA: ${a.answer}`
+      if (a.followUp) entry += `\nFollow-up: ${a.followUp}\nA: ${a.followUpAnswer}`
+      return entry
+    }).join("\n\n")
     const res = await fetch("/api/report", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
