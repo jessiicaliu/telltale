@@ -184,7 +184,7 @@ export default function InterviewSession({ interview }) {
   }
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-[calc(100vh-57px)] px-8 py-12">
+    <div className="flex flex-col items-center justify-center px-8 py-12">
 
       {/* ── IDLE ── */}
       {sessionState === "idle" && (
