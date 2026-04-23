@@ -44,6 +44,7 @@ export default function InterviewSession({ interview }) {
   const showDotsRef = useRef(true)
   const questionStartStatsRef = useRef(null)
   const statsRef = useRef({ lookingAway: 0, faceTouches: 0, slouching: 0, fillers: 0 })
+  const sessionBaselineStatsRef = useRef(null)
   const questionTimerRef = useRef(null)
   const followUpTimerRef = useRef(null)
 
@@ -134,6 +135,7 @@ export default function InterviewSession({ interview }) {
   useEffect(() => {
     if (sessionState !== "active") return
     sessionStartRef.current = Date.now()
+    sessionBaselineStatsRef.current = { ...statsRef.current }
     questionStartStatsRef.current = { lookingAway: 0, faceTouches: 0, fillers: 0, slouching: 0 }
     const id = setInterval(() => setTimer(Math.floor((Date.now() - sessionStartRef.current) / 1000)), 1000)
     return () => clearInterval(id)
@@ -186,7 +188,12 @@ export default function InterviewSession({ interview }) {
     const res = await fetch("/api/report", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ stats: statsRef.current, duration, transcript: fullTranscript }),
+      body: JSON.stringify({ stats: {
+        lookingAway: statsRef.current.lookingAway - (sessionBaselineStatsRef.current?.lookingAway ?? 0),
+        faceTouches: statsRef.current.faceTouches - (sessionBaselineStatsRef.current?.faceTouches ?? 0),
+        slouching:   statsRef.current.slouching   - (sessionBaselineStatsRef.current?.slouching   ?? 0),
+        fillers:     statsRef.current.fillers     - (sessionBaselineStatsRef.current?.fillers     ?? 0),
+      }, duration, transcript: fullTranscript }),
     })
     const json = await res.json()
     try {
