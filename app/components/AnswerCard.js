@@ -16,7 +16,7 @@ function StarBadge({ label, hit }) {
   )
 }
 
-export default function AnswerCard({ number, question, answer, stats, role, company, type, followUp, followUpAnswer }) {
+export default function AnswerCard({ number, question, answer, stats, micError, role, company, type, followUp, followUpAnswer }) {
   const [result, setResult] = useState(null)
   const [loading, setLoading] = useState(false)
 
@@ -45,7 +45,9 @@ export default function AnswerCard({ number, question, answer, stats, role, comp
       <div className="flex flex-col gap-1">
         <span className="text-xs text-white/25 uppercase tracking-widest"
           style={{ fontFamily: 'JetBrains Mono, monospace' }}>Your answer</span>
-        <p className="text-white/50 text-sm leading-relaxed">{answer || "No answer recorded"}</p>
+        <p className="text-white/50 text-sm leading-relaxed">
+          {answer || (micError ? "No answer recorded — microphone was not accessible" : "No answer recorded")}
+        </p>
       </div>
 
       {followUp && (

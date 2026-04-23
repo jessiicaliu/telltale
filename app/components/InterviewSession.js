@@ -1,6 +1,6 @@
 "use client"
 
-import { useRef, useEffect, useState } from "react"
+import { useRef, useEffect, useState, useCallback } from "react"
 import { useMediaPipeDetection } from "../hooks/useMediaPipeDetection"
 import { useAudioTranscription } from "../hooks/useAudioTranscription"
 import { METRICS, StatCard } from "./ui/StatCard"
@@ -55,57 +55,12 @@ export default function InterviewSession({ interview }) {
   // Keep a ref in sync so handlers always read the latest stats without stale closure issues
   useEffect(() => { statsRef.current = stats })
 
-  // Session elapsed timer — resets once on active
-  useEffect(() => {
-    if (sessionState !== "active") return
-    sessionStartRef.current = Date.now()
-    questionStartStatsRef.current = { lookingAway: 0, faceTouches: 0, fillers: 0, slouching: 0 }
-    const id = setInterval(() => setTimer(Math.floor((Date.now() - sessionStartRef.current) / 1000)), 1000)
-    return () => clearInterval(id)
-  }, [sessionState])
-
-  // Per-question countdown — auto-advances when time runs out
-  useEffect(() => {
-    if (sessionState !== "active") return
-    questionTimerRef.current = Date.now()
-    const id = setInterval(() => {
-      const elapsed = Math.floor((Date.now() - questionTimerRef.current) / 1000)
-      const remaining = QUESTION_TIME - elapsed
-      if (remaining <= 0) {
-        clearInterval(id)
-        setTimeLeft(0)
-        handleNext()
-      } else {
-        setTimeLeft(remaining)
-      }
-    }, 500)
-    return () => clearInterval(id)
-  }, [sessionState, currentQ])
-
-  // Follow-up countdown — auto-advances when time runs out
-  useEffect(() => {
-    if (!followUpState?.question) return
-    followUpTimerRef.current = Date.now()
-    const id = setInterval(() => {
-      const elapsed = Math.floor((Date.now() - followUpTimerRef.current) / 1000)
-      const remaining = FOLLOWUP_TIME - elapsed
-      if (remaining <= 0) {
-        clearInterval(id)
-        setFollowUpTimeLeft(0)
-        handleFollowUpSkip()
-      } else {
-        setFollowUpTimeLeft(remaining)
-      }
-    }, 500)
-    return () => clearInterval(id)
-  }, [followUpState])
-
   function toggleDots() {
     showDotsRef.current = !showDotsRef.current
     setShowDots(showDotsRef.current)
   }
 
-  function handleNext() {
+  const handleNext = useCallback(() => {
     const current = statsRef.current
     const baseline = questionStartStatsRef.current ?? { lookingAway: 0, faceTouches: 0, fillers: 0, slouching: 0 }
     const delta = {
@@ -151,7 +106,7 @@ export default function InterviewSession({ interview }) {
         setFollowUpState(null)
         setCurrentQ(prev => prev + 1)
       })
-  }
+  }, [currentQ, interview, transcriptRef, questionStartStatsRef])
 
   function handleFollowUpDone() {
     const followUpAnswer = transcriptRef.current.trim()
@@ -169,11 +124,56 @@ export default function InterviewSession({ interview }) {
     setCurrentQ(prev => prev + 1)
   }
 
-  function handleFollowUpSkip() {
+  const handleFollowUpSkip = useCallback(() => {
     transcriptRef.current = ""
     setFollowUpState(null)
     setCurrentQ(prev => prev + 1)
-  }
+  }, [transcriptRef])
+
+  // Session elapsed timer — resets once on active
+  useEffect(() => {
+    if (sessionState !== "active") return
+    sessionStartRef.current = Date.now()
+    questionStartStatsRef.current = { lookingAway: 0, faceTouches: 0, fillers: 0, slouching: 0 }
+    const id = setInterval(() => setTimer(Math.floor((Date.now() - sessionStartRef.current) / 1000)), 1000)
+    return () => clearInterval(id)
+  }, [sessionState])
+
+  // Per-question countdown — auto-advances when time runs out
+  useEffect(() => {
+    if (sessionState !== "active") return
+    questionTimerRef.current = Date.now()
+    const id = setInterval(() => {
+      const elapsed = Math.floor((Date.now() - questionTimerRef.current) / 1000)
+      const remaining = QUESTION_TIME - elapsed
+      if (remaining <= 0) {
+        clearInterval(id)
+        setTimeLeft(0)
+        handleNext()
+      } else {
+        setTimeLeft(remaining)
+      }
+    }, 500)
+    return () => clearInterval(id)
+  }, [sessionState, currentQ, handleNext])
+
+  // Follow-up countdown — auto-advances when time runs out
+  useEffect(() => {
+    if (!followUpState?.question) return
+    followUpTimerRef.current = Date.now()
+    const id = setInterval(() => {
+      const elapsed = Math.floor((Date.now() - followUpTimerRef.current) / 1000)
+      const remaining = FOLLOWUP_TIME - elapsed
+      if (remaining <= 0) {
+        clearInterval(id)
+        setFollowUpTimeLeft(0)
+        handleFollowUpSkip()
+      } else {
+        setFollowUpTimeLeft(remaining)
+      }
+    }, 500)
+    return () => clearInterval(id)
+  }, [followUpState, handleFollowUpSkip])
 
   async function getReport() {
     setReportLoading(true)
@@ -350,6 +350,7 @@ export default function InterviewSession({ interview }) {
                 question={a.question}
                 answer={a.answer}
                 stats={a.stats}
+                micError={micError}
                 role={interview.role}
                 company={interview.company}
                 type={interview.type}
