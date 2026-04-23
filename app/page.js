@@ -6,6 +6,7 @@ import Setup from "./components/Setup"
 
 export default function Home() {
   const [interview, setInterview] = useState(null)
+  const [generating, setGenerating] = useState(false)
 
   return (
     <main className="min-h-screen bg-[#080810] text-white">
@@ -19,9 +20,18 @@ export default function Home() {
         </span>
       </nav>
       <div className="flex flex-col items-center justify-center min-h-[calc(100vh-57px)] px-8 py-16">
-        {!interview
-          ? <Setup onStart={setInterview} />
-          : <InterviewSession interview={interview} />
+        {interview
+          ? <InterviewSession interview={interview} />
+          : generating
+          ? (
+            <div className="flex flex-col items-center gap-4">
+              <div className="w-6 h-6 rounded-full border-2 border-white/10 border-t-emerald-400 animate-spin" />
+              <p className="text-white/30 text-sm" style={{ fontFamily: 'JetBrains Mono, monospace' }}>
+                Generating your questions...
+              </p>
+            </div>
+          )
+          : <Setup onLoading={() => setGenerating(true)} onStart={data => { setGenerating(false); setInterview(data) }} />
         }
       </div>
     </main>

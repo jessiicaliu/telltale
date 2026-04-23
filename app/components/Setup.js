@@ -9,7 +9,7 @@ const INTERVIEW_TYPES = [
   { id: "case", label: "Case" },
 ]
 
-export default function Setup({ onStart }) {
+export default function Setup({ onStart, onLoading }) {
   const [role, setRole] = useState("")
   const [company, setCompany] = useState("")
   const [type, setType] = useState("behavioral")
@@ -21,6 +21,7 @@ export default function Setup({ onStart }) {
     if (!role.trim() || !company.trim()) return
     setLoading(true)
     setError("")
+    onLoading?.()
     try {
       const res = await fetch("/api/questions", {
         method: "POST",
