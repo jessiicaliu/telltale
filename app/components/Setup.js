@@ -13,6 +13,7 @@ export default function Setup({ onStart }) {
   const [role, setRole] = useState("")
   const [company, setCompany] = useState("")
   const [type, setType] = useState("behavioral")
+  const [count, setCount] = useState(5)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
 
@@ -24,7 +25,7 @@ export default function Setup({ onStart }) {
       const res = await fetch("/api/questions", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ role, company, type })
+        body: JSON.stringify({ role, company, type, count })
       })
       const { questions, error } = await res.json()
       if (error) throw new Error(error)
@@ -82,6 +83,24 @@ export default function Setup({ onStart }) {
               {label}
             </button>
           ))}
+        </div>
+        <div className="flex items-center gap-3">
+          <span className="text-white/25 text-xs" style={{ fontFamily: 'JetBrains Mono, monospace' }}>Questions</span>
+          <div className="flex gap-2 flex-1">
+            {[3, 5, 7].map(n => (
+              <button
+                key={n}
+                onClick={() => setCount(n)}
+                className={`flex-1 py-2 rounded-xl text-sm font-medium transition-all cursor-pointer border ${
+                  count === n
+                    ? "bg-emerald-500/10 border-emerald-500/40 text-emerald-400"
+                    : "bg-white/[0.03] border-white/[0.08] text-white/30 hover:text-white/50 hover:border-white/15"
+                }`}
+              >
+                {n}
+              </button>
+            ))}
+          </div>
         </div>
         {error && <p className="text-red-400 text-xs text-left" style={{ fontFamily: 'JetBrains Mono, monospace' }}>{error}</p>}
       </div>

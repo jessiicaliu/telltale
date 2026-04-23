@@ -5,7 +5,7 @@ const groq = new Groq({ apiKey: process.env.GROQ_API_KEY })
 
 export async function POST(req) {
   try {
-    const { role, company, type = "behavioral" } = await req.json()
+    const { role, company, type = "behavioral", count = 5 } = await req.json()
 
     const typePrompts = {
       behavioral: `Mix of:
@@ -33,14 +33,14 @@ export async function POST(req) {
       messages: [
         {
           role: "user",
-          content: `Generate exactly 5 realistic ${type} interview questions for a candidate interviewing for a ${role} position at ${company}.
+          content: `Generate exactly ${count} realistic ${type} interview questions for a candidate interviewing for a ${role} position at ${company}.
 
       ${typePrompts[type] ?? typePrompts.behavioral}
 
       Keep questions natural and conversational like a real interviewer would ask. Don't mention ${company} by name in every question — only where it genuinely makes sense. Don't be overly specific about internal tools, teams, or processes at ${company} since the candidate hasn't worked there.
 
-      Return ONLY a JSON array of 5 strings, no other text, no markdown, no explanation. Example format:
-      ["Question 1", "Question 2", "Question 3", "Question 4", "Question 5"]`
+      Return ONLY a JSON array of ${count} strings, no other text, no markdown, no explanation. Example format:
+      ["Question 1", "Question 2", "Question 3"]`
         }
       ]
     })
