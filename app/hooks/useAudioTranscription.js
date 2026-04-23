@@ -11,17 +11,25 @@ export function useAudioTranscription(active) {
   const fillerCountRef = useRef(0)
 
   const [fillerCount, setFillerCount] = useState(0)
+  const [micError, setMicError] = useState(false)
 
   useEffect(() => {
     if (!active) return
 
     transcriptRef.current = ""
     fillerCountRef.current = 0
+    setMicError(false)
 
     let stopped = false
 
     async function startRecording() {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      let stream
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      } catch {
+        setMicError(true)
+        return
+      }
       const mediaRecorder = new MediaRecorder(stream)
       mediaRecorderRef.current = mediaRecorder
       audioChunksRef.current = []
@@ -77,5 +85,5 @@ export function useAudioTranscription(active) {
     }
   }, [active])
 
-  return { fillerCount, transcriptRef }
+  return { fillerCount, transcriptRef, micError }
 }

@@ -49,7 +49,7 @@ export default function InterviewSession({ interview }) {
 
   const active = sessionState === "active"
   const { visualStats, liveSignals } = useMediaPipeDetection(active, videoRef, canvasRef, showDotsRef)
-  const { fillerCount, transcriptRef } = useAudioTranscription(active)
+  const { fillerCount, transcriptRef, micError } = useAudioTranscription(active)
   const stats = { ...visualStats, fillers: fillerCount }
 
   // Keep a ref in sync so handlers always read the latest stats without stale closure issues
@@ -254,6 +254,13 @@ export default function InterviewSession({ interview }) {
             </div>
           ) : (
             <Question question={interview.questions[currentQ]} number={currentQ + 1} total={interview.questions.length} />
+          )}
+
+          {micError && (
+            <div className="w-full rounded-xl px-4 py-2.5 text-xs text-amber-400/80 flex items-center gap-2"
+              style={{ background: "rgba(245,158,11,0.07)", border: "1px solid rgba(245,158,11,0.15)", fontFamily: 'JetBrains Mono, monospace' }}>
+              ⚠ Microphone access denied — answers won&apos;t be transcribed
+            </div>
           )}
 
           {/* Timer bar */}
