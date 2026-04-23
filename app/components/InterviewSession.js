@@ -64,24 +64,38 @@ export default function InterviewSession({ interview }) {
     return () => clearInterval(id)
   }, [sessionState])
 
-  // Per-question countdown — derives remaining time from a start-time ref
+  // Per-question countdown — auto-advances when time runs out
   useEffect(() => {
     if (sessionState !== "active") return
     questionTimerRef.current = Date.now()
     const id = setInterval(() => {
       const elapsed = Math.floor((Date.now() - questionTimerRef.current) / 1000)
-      setTimeLeft(Math.max(0, QUESTION_TIME - elapsed))
+      const remaining = QUESTION_TIME - elapsed
+      if (remaining <= 0) {
+        clearInterval(id)
+        setTimeLeft(0)
+        handleNext()
+      } else {
+        setTimeLeft(remaining)
+      }
     }, 500)
     return () => clearInterval(id)
   }, [sessionState, currentQ])
 
-  // Follow-up countdown — derives remaining time from a start-time ref
+  // Follow-up countdown — auto-advances when time runs out
   useEffect(() => {
     if (!followUpState?.question) return
     followUpTimerRef.current = Date.now()
     const id = setInterval(() => {
       const elapsed = Math.floor((Date.now() - followUpTimerRef.current) / 1000)
-      setFollowUpTimeLeft(Math.max(0, FOLLOWUP_TIME - elapsed))
+      const remaining = FOLLOWUP_TIME - elapsed
+      if (remaining <= 0) {
+        clearInterval(id)
+        setFollowUpTimeLeft(0)
+        handleFollowUpSkip()
+      } else {
+        setFollowUpTimeLeft(remaining)
+      }
     }, 500)
     return () => clearInterval(id)
   }, [followUpState])
