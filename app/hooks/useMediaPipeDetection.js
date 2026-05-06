@@ -84,8 +84,8 @@ export function useMediaPipeDetection(active, videoRef, canvasRef, showDotsRef) 
 
       const now = performance.now()
       const faceResults = faceLandmarker.detectForVideo(video, now)
-      const handResults = handLandmarker.detectForVideo(video, now)
-      const poseResults = poseLandmarker.detectForVideo(video, now)
+      const handResults = handLandmarker.detectForVideo(video, now + 1)
+      const poseResults = poseLandmarker.detectForVideo(video, now + 2)
 
       ctx.clearRect(0, 0, canvas.width, canvas.height)
 
